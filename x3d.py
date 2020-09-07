@@ -144,7 +144,7 @@ class Polypoint2D(X3DGeometryNode):
 
         # Render
         if "Polypoint2D" in X3D.render:
-            X3D.render["Polypoint2D"](point=point, color=X3D.current_color)  
+            X3D.render["Polypoint2D"](point=point, color=X3D.current_color)
 
 class Polyline2D(X3DGeometryNode):
     def __init__(self, node):

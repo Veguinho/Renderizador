@@ -3,6 +3,7 @@
 # Data: 28 de Agosto de 2020
 
 import argparse
+import numpy as np
 
 # X3D
 import x3d
@@ -13,20 +14,89 @@ import interface
 # GPU
 import gpu
 
+##### ADAPTED CODE FROM: https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle #####
+#Checks the sign of the dot product between point and triangle edge
+def checkSign(pt, v0, v1):
+    return (pt[0] - v1[0]) * (v0[1] - v1[1]) - (v0[0] - v1[0]) * (pt[1] - v1[1])
+
+#Checks if point is inside triangle
+def isInside(vertices, point):
+    v0 = [vertices[0], vertices[1]]
+    v1 = [vertices[2], vertices[3]]
+    v2 = [vertices[4], vertices[5]]
+
+    d1 = checkSign(point, v0, v1)
+    d2 = checkSign(point, v1, v2)
+    d3 = checkSign(point, v2, v0)
+
+    has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+    has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+
+    return not(has_neg and has_pos)
+
+##################################################################################################################
+
+
+#IMPLEMENTATION OF BRESENHAM'S ALGORITHM FROM: https://github.com/encukou/bresenham
+def bresenham(x0, y0, x1, y1):
+    """Yield integer coordinates on the line from (x0, y0) to (x1, y1).
+    Input coordinates should be integers.
+    The result will contain both the start and the end point.
+    """
+    dx = x1 - x0
+    dy = y1 - y0
+
+    xsign = 1 if dx > 0 else -1
+    ysign = 1 if dy > 0 else -1
+
+    dx = abs(dx)
+    dy = abs(dy)
+
+    if dx > dy:
+        xx, xy, yx, yy = xsign, 0, 0, ysign
+    else:
+        dx, dy = dy, dx
+        xx, xy, yx, yy = 0, ysign, xsign, 0
+
+    D = 2*dy - dx
+    y = 0
+
+    for x in range(dx + 1):
+        yield x0 + x*xx + y*yx, y0 + x*xy + y*yy
+        if D >= 0:
+            y += 1
+            D -= 2*dx
+        D += 2*dy
+
 def polypoint2D(point, color):
     """ Função usada para renderizar Polypoint2D. """
-    gpu.GPU.set_pixel(3, 1, 255, 0, 0) # altera um pixel da imagem
+    p=0
+    while p < len(point):
+        gpu.GPU.set_pixel(int(point[p]), int(point[p+1]), int(255*color[0]), int(255*color[1]), int(255*color[2])) # altera um pixel da imagem
+        p+=2
     # cuidado com as cores, o X3D especifica de (0,1) e o Framebuffer de (0,255)
 
 def polyline2D(lineSegments, color):
     """ Função usada para renderizar Polyline2D. """
-    x = gpu.GPU.width//2
-    y = gpu.GPU.height//2
-    gpu.GPU.set_pixel(x, y, 255, 0, 0) # altera um pixel da imagem
+    # x = gpu.GPU.width//2
+    # y = gpu.GPU.height//2
+    line_coords = list(bresenham(int(lineSegments[0]), int(lineSegments[1]), int(lineSegments[2]), int(lineSegments[3]))) #Faz cálculo de quais pixeis irão ser pintados baseados no algoritmo de Bresenham e salva num vetor
+    for point in line_coords:
+        gpu.GPU.set_pixel(int(point[0]), int(point[1]), int(255*color[0]), int(255*color[1]), int(255*color[2])) # altera um pixel da imagem
 
 def triangleSet2D(vertices, color):
     """ Função usada para renderizar TriangleSet2D. """
-    gpu.GPU.set_pixel(24, 8, 255, 255, 0) # altera um pixel da imagem
+    for l in range(0,LARGURA):
+        for a in range(0,ALTURA):
+            #Multisampling for anti-aliasing (4XAA)
+            multiplier0 = isInside(vertices, [l+0.33,a+0.33])
+            multiplier1 = isInside(vertices, [l+0.33,a+0.66])
+            multiplier2 = isInside(vertices, [l+0.66,a+0.33])
+            multiplier3 = isInside(vertices, [l+0.66,a+0.66])
+            #Final multiplier checks which parts of the pixel are covered by triangle
+            fm = 0.25*multiplier0 + 0.25*multiplier1 + 0.25*multiplier2 + 0.25*multiplier3
+            if fm > 0:
+                gpu.GPU.set_pixel(l, a, 255*fm*color[0], 255*fm*color[1], 255*fm*color[2]) # altera um pixel da imagem
 
 LARGURA = 30
 ALTURA = 20
