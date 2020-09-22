@@ -30,6 +30,12 @@ def isInside(vertices, point):
 
 ##################################################################################################################
 
+class Matrix:
+    def __init__(self):
+        self.matrix = np.array([[1.0,0,0,0],
+                                [0,1.0,0,0],
+                                [0,0,1.0,0],
+                                [0,0,0,1.0]])
 
 #IMPLEMENTATION OF BRESENHAM'S ALGORITHM FROM: https://github.com/encukou/bresenham
 def bresenham(x0, y0, x1, y1):
@@ -96,20 +102,76 @@ def triangleSet(point, color):
     """ Função usada para renderizar TriangleSet. """
     print("TriangleSet : pontos = {0}".format(point)) # imprime no terminal pontos
 
-def viewpoint(position, orientation, fieldOfView):
+def viewpoint(position, orientation, fieldOfView): #camera
     """ Função usada para renderizar (na verdade coletar os dados) de Viewpoint. """
-    print("Viewpoint : position = {0}, orientation = {0}, fieldOfView = {0}".format(position, orientation, fieldOfView)) # imprime no terminal
+    look_at_matrix.matrix = np.array([[1.0,0,0,0],
+                                      [0,1.0,0,0],
+                                      [0,0,1.0,0],
+                                      [0,0,0,1.0]])
+                                      
+    # orientation_matrix = np.array([[1.0,0,0,0],
+    #                                [0,1.0,0,0],
+    #                                [0,0,1.0,0],
+    #                                [0,0,0,1.0]])
 
-def transform(translation, scale, rotation):
+    top = NEAR * np.tan(fieldOfView)
+    right = top * (LARGURA/ALTURA)
+
+    perspective_matrix = np.array([[NEAR/right,0,0,0],
+                                  [0,NEAR/top,0,0],
+                                  [0,0,-(FAR+NEAR)/(FAR-NEAR),-2*(FAR*NEAR)/(FAR-NEAR)],
+                                  [0,0,-1.0,0]])
+
+    position_matrix = np.array([[1.0,0,0,-position[0]],
+                                [0,1.0,0,-position[1]],
+                                [0,0,1.0,-position[2]],
+                                [0,0,0,1.0]])
+
+    look_at_matrix.matrix = perspective_matrix * position_matrix
+
+    print("Viewpoint : position = {0}, orientation = {1}, fieldOfView = {2}".format(position, orientation, fieldOfView)) # imprime no terminal
+
+def transform(translation, scale, rotation): #objeto -> Pegar as transformacoes em forma de matriz e multiplicar todas elas para obter uma matriz só de transformação
     """ Função usada para renderizar (na verdade coletar os dados) de Transform. """
+    op_stack = []
+    transform_matrix.matrix = np.array([[1.0,0,0,0],
+                                        [0,1.0,0,0],
+                                        [0,0,1.0,0],
+                                        [0,0,0,1.0]])
     print("Transform : ", end = '')
     if translation:
-        print("translation = {0} ".format(translation), end = '') # imprime no terminal
+        op_stack.append(np.array([[1.0,0,0,translation[0]],
+                                  [0,1.0,0,translation[1]],
+                                  [0,0,1.0,translation[2]],
+                                  [0,0,0,1.0]]))
+        #print("translation = {0} ".format(translation), end = '') # imprime no terminal
     if scale:
-        print("scale = {0} ".format(scale), end = '') # imprime no terminal
+        op_stack.append(np.array([[scale[0],0,0,0],
+                                  [0,scale[1],0,0],
+                                  [0,0,scale[2],0],
+                                  [0,0,0,1]]))
+        #print("scale = {0} ".format(scale), end = '') # imprime no terminal
     if rotation:
-        print("rotation = {0} ".format(rotation), end = '') # imprime no terminal
-    print("")
+        if rotation[0]:
+            op_stack.append(np.array([[1.0,0,0,0],
+                                      [0,np.cos(rotation[3]),-np.sin(rotation[3]),0],
+                                      [0,np.sin(rotation[3]),np.cos(rotation[3]),0],
+                                      [0,0,0,1]]))
+        if rotation[1]:
+            op_stack.append(np.array([[np.cos(rotation[3]),0,np.sin(rotation[3]),0],
+                                      [0,1.0,0,0],
+                                      [-np.sin(rotation[3]),0,np.cos(rotation[3]),0],
+                                      [0,0,0,1.0]]))
+        if rotation[2]:
+            op_stack.append(np.array([[np.cos(rotation[3]),-np.sin(rotation[3]),0,0],
+                                      [np.sin(rotation[3]),np.cos(rotation[3]),0,0],
+                                      [0,0,1.0,0],
+                                      [0,0,0,1.0]]))
+        #print("rotation = {0} ".format(rotation), end = '') # imprime no terminal
+    while(op_stack): #Faz as operações de transformação na ordem certa
+        transform_matrix.matrix *= op_stack.pop()
+    #print("FINAL transform_matrix")
+    #print(transform_matrix)
 
 def triangleStripSet(point, stripCount, color):
     """ Função usada para renderizar TriangleStripSet. """
@@ -129,8 +191,13 @@ def box(size, color):
 
 LARGURA = 30
 ALTURA = 20
+NEAR = 0.5
+FAR = 100.0
 
 if __name__ == '__main__':
+
+    transform_matrix = Matrix()
+    look_at_matrix = Matrix()
 
     # Valores padrão da aplicação
     width = LARGURA
