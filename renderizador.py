@@ -108,26 +108,56 @@ def triangleSet(point, color):
     # No TriangleSet os triângulos são informados individualmente, assim os três
     # primeiros pontos definem um triângulo, os três próximos pontos definem um novo
     # triângulo, e assim por diante.
+    triangles = []
+
+    for p in range(len(point)):
+        if p%9 == 0:      
+            triangle_result = np.matmul(transform_matrix.matrix,np.array([[point[p],point[p+3],point[p+6]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                        [point[p+1],point[p+4],point[p+7]],
+                                                                        [point[p+2],point[p+5],point[p+8]],
+                                                                        [1.0,1.0,1.0]]))
+            triangle_result = np.matmul(look_at_matrix.matrix,triangle_result)#multiplica o resultado pela matriz look at
+            triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+            if(triangle_result[3][0]>0): #normalização
+                triangle_result[:,0] /= triangle_result[3][0]
+            if(triangle_result[3][1]>0):
+                triangle_result[:,1] /= triangle_result[3][1]
+            if(triangle_result[3][2]>0):
+                triangle_result[:,2] /= triangle_result[3][2]
+
+            screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                      [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                      [0,0,1.0,0],
+                                      [0,0,0,1.0]])
+            triangles.append(np.matmul(screen_matrix,triangle_result))#faz a adequação da matriz normalizada para os pontos da tela
+            
+    for t in triangles:
+        triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao da matriz
     
+
     # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("TriangleSet : pontos = {0}".format(point)) # imprime no terminal pontos
+    #print("TriangleSet : pontos = {0}".format(point)) # imprime no terminal pontos
 
 def viewpoint(position, orientation, fieldOfView): #camera
     """ Função usada para renderizar (na verdade coletar os dados) de Viewpoint. """
+    # Na função de viewpoint você receberá a posição, orientação e campo de visão da
+    # câmera virtual. Use esses dados para poder calcular e criar a matriz de projeção
+    # perspectiva para poder aplicar nos pontos dos objetos geométricos.
+
     look_at_matrix.matrix = np.array([[1.0,0,0,0],
                                       [0,1.0,0,0],
                                       [0,0,1.0,0],
                                       [0,0,0,1.0]])
                                       
-    # orientation_matrix = np.array([[1.0,0,0,0],
-    #                                [0,1.0,0,0],
-    #                                [0,0,1.0,0],
-    #                                [0,0,0,1.0]])
+    orientation_matrix = np.array([[1.0,0,0,0],
+                                   [0,1.0,0,0],
+                                   [0,0,1.0,0],
+                                   [0,0,0,1.0]])
 
     top = NEAR * np.tan(fieldOfView)
     right = top * (LARGURA/ALTURA)
 
-    perspective_matrix = np.array([[NEAR/right,0,0,0],
+    perspective_matrix.matrix = np.array([[NEAR/right,0,0,0],
                                   [0,NEAR/top,0,0],
                                   [0,0,-(FAR+NEAR)/(FAR-NEAR),-2*(FAR*NEAR)/(FAR-NEAR)],
                                   [0,0,-1.0,0]])
@@ -137,51 +167,65 @@ def viewpoint(position, orientation, fieldOfView): #camera
                                 [0,0,1.0,-position[2]],
                                 [0,0,0,1.0]])
 
-    look_at_matrix.matrix = perspective_matrix * position_matrix
+    look_at_matrix.matrix = np.matmul(orientation_matrix,position_matrix)
+    
 
-    print("Viewpoint : position = {0}, orientation = {1}, fieldOfView = {2}".format(position, orientation, fieldOfView)) # imprime no terminal
+    #print("Viewpoint : position = {0}, orientation = {1}, fieldOfView = {2}".format(position, orientation, fieldOfView)) # imprime no terminal
 
 def transform(translation, scale, rotation): #objeto -> Pegar as transformacoes em forma de matriz e multiplicar todas elas para obter uma matriz só de transformação
     """ Função usada para renderizar (na verdade coletar os dados) de Transform. """
-    op_stack = []
-    transform_matrix.matrix = np.array([[1.0,0,0,0],
-                                        [0,1.0,0,0],
-                                        [0,0,1.0,0],
-                                        [0,0,0,1.0]])
-    print("Transform : ", end = '')
-    if translation:
-        op_stack.append(np.array([[1.0,0,0,translation[0]],
-                                  [0,1.0,0,translation[1]],
-                                  [0,0,1.0,translation[2]],
-                                  [0,0,0,1.0]]))
-        #print("translation = {0} ".format(translation), end = '') # imprime no terminal
+    # A função transform será chamada quando se entrar em um nó X3D do tipo Transform
+    # do grafo de cena. Os valores passados são a escala em um vetor [x, y, z]
+    # indicando a escala em cada direção, a translação [x, y, z] nas respectivas
+    # coordenadas e finalmente a rotação por [x, y, z, t] sendo definida pela rotação
+    # do objeto ao redor do eixo x, y, z por t radianos, seguindo a regra da mão direita.
+    # Quando se entrar em um nó transform se deverá salvar a matriz de transformação dos
+    # modelos do mundo em alguma estrutura de pilha.
+
+    tmp_stack = []
+
+    tmp_matrix = np.array([[1.0,0,0,0],
+                            [0,1.0,0,0],
+                            [0,0,1.0,0],
+                            [0,0,0,1.0]])
+    #print("Transform : ", end = '')
     if scale:
-        op_stack.append(np.array([[scale[0],0,0,0],
+        tmp_stack.append(np.array([[scale[0],0,0,0],
                                   [0,scale[1],0,0],
                                   [0,0,scale[2],0],
                                   [0,0,0,1]]))
         #print("scale = {0} ".format(scale), end = '') # imprime no terminal
+
     if rotation:
         if rotation[0]:
-            op_stack.append(np.array([[1.0,0,0,0],
+            tmp_stack.append(np.array([[1.0,0,0,0],
                                       [0,np.cos(rotation[3]),-np.sin(rotation[3]),0],
                                       [0,np.sin(rotation[3]),np.cos(rotation[3]),0],
-                                      [0,0,0,1]]))
-        if rotation[1]:
-            op_stack.append(np.array([[np.cos(rotation[3]),0,np.sin(rotation[3]),0],
+                                      [0,0,0,1.0]]))
+        elif rotation[1]:
+            tmp_stack.append(np.array([[np.cos(rotation[3]),0,np.sin(rotation[3]),0],
                                       [0,1.0,0,0],
                                       [-np.sin(rotation[3]),0,np.cos(rotation[3]),0],
                                       [0,0,0,1.0]]))
-        if rotation[2]:
-            op_stack.append(np.array([[np.cos(rotation[3]),-np.sin(rotation[3]),0,0],
+        elif rotation[2]:
+            tmp_stack.append(np.array([[np.cos(rotation[3]),-np.sin(rotation[3]),0,0],
                                       [np.sin(rotation[3]),np.cos(rotation[3]),0,0],
                                       [0,0,1.0,0],
                                       [0,0,0,1.0]]))
         #print("rotation = {0} ".format(rotation), end = '') # imprime no terminal
-    while(op_stack): #Faz as operações de transformação na ordem certa
-        transform_matrix.matrix *= op_stack.pop()
+
+    if translation:
+        tmp_stack.append(np.array([[1.0,0,0,translation[0]],
+                                  [0,1.0,0,translation[1]],
+                                  [0,0,1.0,translation[2]],
+                                  [0,0,0,1.0]]))
+        #print("translation = {0} ".format(translation), end = '') # imprime no terminal
+    
+    while(tmp_stack):
+        tmp_matrix = np.matmul(tmp_stack.pop(), tmp_matrix)
+    op_stack.append(tmp_matrix)
+
     #print("FINAL transform_matrix")
-    #print(transform_matrix)
 
 def _transform():
     """ Função usada para renderizar (na verdade coletar os dados) de Transform. """
@@ -189,9 +233,10 @@ def _transform():
     # grafo de cena. Não são passados valores, porém quando se sai de um nó transform se
     # deverá recuperar a matriz de transformação dos modelos do mundo da estrutura de
     # pilha implementada.
-
+    while(op_stack): #Faz as operações de transformação na ordem certa
+        transform_matrix.matrix = np.matmul(op_stack.pop(),transform_matrix.matrix)
     # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("Saindo de Transform")
+    #print("Saindo de Transform")
 
 def triangleStripSet(point, stripCount, color):
     """ Função usada para renderizar TriangleStripSet. """
@@ -203,11 +248,37 @@ def triangleStripSet(point, stripCount, color):
     # por diante. No TriangleStripSet a quantidade de vértices a serem usados é informado
     # em uma lista chamada stripCount (perceba que é uma lista).
 
+    triangles = []
+    counter = 0
+    for p in range(len(point)):
+        if p%3 == 0 and p >= 9 and p<(len(point)-8):      
+            triangle_result = np.matmul(transform_matrix.matrix,np.array([[point[p],point[p+3],point[p+6]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                        [point[p+1],point[p+4],point[p+7]],
+                                                                        [point[p+2],point[p+5],point[p+8]],
+                                                                        [1.0,1.0,1.0]]))
+            triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
+            triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+            if(triangle_result[3][0]>0): #normalização
+                triangle_result[:,0] /= triangle_result[3][0]
+            if(triangle_result[3][1]>0):
+                triangle_result[:,1] /= triangle_result[3][1]
+            if(triangle_result[3][2]>0):
+                triangle_result[:,2] /= triangle_result[3][2]
+
+            screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                      [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                      [0,0,1.0,0],
+                                      [0,0,0,1.0]])
+            triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
+            counter+=1
+    for t in triangles:
+        triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao da matriz
+
     # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("TriangleStripSet : pontos = {0} ".format(point), end = '') # imprime no terminal pontos
-    for i, strip in enumerate(stripCount):
-        print("strip[{0}] = {1} ".format(i, strip), end = '') # imprime no terminal
-    print("")
+    # print("TriangleStripSet : pontos = {0} ".format(point), end = '') # imprime no terminal pontos
+    # for i, strip in enumerate(stripCount):
+    #     print("strip[{0}] = {1} ".format(i, strip), end = '') # imprime no terminal
+    # print("")
 
 def indexedTriangleStripSet(point, index, color):
     """ Função usada para renderizar IndexedTriangleStripSet. """
@@ -221,9 +292,35 @@ def indexedTriangleStripSet(point, index, color):
     # acabou. A ordem de conexão será de 3 em 3 pulando um índice. Por exemplo: o
     # primeiro triângulo será com os vértices 0, 1 e 2, depois serão os vértices 1, 2 e 3,
     # depois 2, 3 e 4, e assim por diante.
+
+    triangles = []
+    counter = 0
+    for p in range(len(point)):
+        if p%3 == 0 and p >= 9 and p<(len(point)-8):      
+            triangle_result = np.matmul(transform_matrix.matrix,np.array([[point[p],point[p+3],point[p+6]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                        [point[p+1],point[p+4],point[p+7]],
+                                                                        [point[p+2],point[p+5],point[p+8]],
+                                                                        [1.0,1.0,1.0]]))
+            triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
+            triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+            if(triangle_result[3][0]>0): #normalização
+                triangle_result[:,0] /= triangle_result[3][0]
+            if(triangle_result[3][1]>0):
+                triangle_result[:,1] /= triangle_result[3][1]
+            if(triangle_result[3][2]>0):
+                triangle_result[:,2] /= triangle_result[3][2]
+
+            screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                      [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                      [0,0,1.0,0],
+                                      [0,0,0,1.0]])
+            triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
+            counter+=1
+    for t in triangles:
+        triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao da matriz
     
     # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("IndexedTriangleStripSet : pontos = {0}, index = {1}".format(point, index)) # imprime no terminal pontos
+    #print("IndexedTriangleStripSet : pontos = {0}, index = {1}".format(point, index)) # imprime no terminal pontos
 
 def box(size, color):
     """ Função usada para renderizar Boxes. """
@@ -233,20 +330,67 @@ def box(size, color):
     # e Z, respectivamente, e cada valor do tamanho deve ser maior que zero. Para desenha
     # essa caixa você vai provavelmente querer tesselar ela em triângulos, para isso
     # encontre os vértices e defina os triângulos.
+    
+    points = [[size[0]/2,size[1]/2,size[2]/2],
+            [size[0]/2,-size[1]/2,size[2]/2],
+            [size[0]/2,-size[1]/2,-size[2]/2],
+            [size[0]/2,size[1]/2,-size[2]/2],
+            [-size[0]/2,-size[1]/2,-size[2]/2],
+            [-size[0]/2,size[1]/2,-size[2]/2],
+            [-size[0]/2,size[1]/2,size[2]/2],
+            [-size[0]/2,-size[1]/2,size[2]/2]]
 
+    triangles_to_render = [[points[0],points[1],points[2]],
+                        [points[0],points[2],points[3]],
+                        [points[2],points[3],points[4]],
+                        [points[3],points[4],points[5]],
+                        [points[4],points[5],points[6]],
+                        [points[4],points[6],points[7]],
+                        [points[6],points[7],points[1]],
+                        [points[6],points[1],points[0]],
+                        [points[0],points[6],points[5]],
+                        [points[0],points[3],points[5]],
+                        [points[1],points[2],points[4]],
+                        [points[1],points[7],points[4]]]
+
+    triangles = []
+    for t in triangles_to_render: 
+        triangle_result = np.matmul(transform_matrix.matrix,np.array([[t[0][0],t[1][0],t[2][0]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                    [t[0][1],t[1][1],t[2][1]],
+                                                                    [t[0][2],t[1][2],t[2][2]],
+                                                                    [1.0,1.0,1.0]]))
+        triangle_result = np.matmul(look_at_matrix.matrix,triangle_result)#multiplica o resultado pela matriz look at
+        triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+        if(triangle_result[3][0]>0): #normalização
+            triangle_result[:,0] /= triangle_result[3][0]
+        if(triangle_result[3][1]>0):
+            triangle_result[:,1] /= triangle_result[3][1]
+        if(triangle_result[3][2]>0):
+            triangle_result[:,2] /= triangle_result[3][2]
+
+        screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                    [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                    [0,0,1.0,0],
+                                    [0,0,0,1.0]])
+        triangles.append(np.matmul(screen_matrix,triangle_result))#faz a adequação da matriz normalizada para os pontos da tela
+            
+    for t in triangles:
+        triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao da matriz
     # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("Box : size = {0}".format(size)) # imprime no terminal pontos
+    # print("Box : size = {0}".format(size)) # imprime no terminal pontos
 
 
-LARGURA = 30
-ALTURA = 20
+LARGURA = 150
+ALTURA = 100
 NEAR = 0.5
 FAR = 100.0
 
 if __name__ == '__main__':
 
+    op_stack = []
     transform_matrix = Matrix()
     look_at_matrix = Matrix()
+    perspective_matrix = Matrix()
 
     # Valores padrão da aplicação
     width = LARGURA
