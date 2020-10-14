@@ -251,7 +251,7 @@ def triangleStripSet(point, stripCount, color):
     triangles = []
     counter = 0
     for p in range(len(point)):
-        if p%3 == 0 and p >= 9 and p<(len(point)-8):      
+        if p%3 == 0 and  p<len(point)-8:      
             triangle_result = np.matmul(transform_matrix.matrix,np.array([[point[p],point[p+3],point[p+6]], #multiplica a matriz dos pontos pela matriz de transformação
                                                                         [point[p+1],point[p+4],point[p+7]],
                                                                         [point[p+2],point[p+5],point[p+8]],
@@ -266,9 +266,9 @@ def triangleStripSet(point, stripCount, color):
                 triangle_result[:,2] /= triangle_result[3][2]
 
             screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
-                                      [0,-ALTURA/2.0,0,ALTURA/2.0],
-                                      [0,0,1.0,0],
-                                      [0,0,0,1.0]])
+                                    [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                    [0,0,1.0,0],
+                                    [0,0,0,1.0]])
             triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
             counter+=1
     for t in triangles:
@@ -293,13 +293,18 @@ def indexedTriangleStripSet(point, index, color):
     # primeiro triângulo será com os vértices 0, 1 e 2, depois serão os vértices 1, 2 e 3,
     # depois 2, 3 e 4, e assim por diante.
 
-    triangles = []
-    counter = 0
+    pr = [] #lista que armazena os pontos me ordem crescente
     for p in range(len(point)):
-        if p%3 == 0 and p >= 9 and p<(len(point)-8):      
-            triangle_result = np.matmul(transform_matrix.matrix,np.array([[point[p],point[p+3],point[p+6]], #multiplica a matriz dos pontos pela matriz de transformação
-                                                                        [point[p+1],point[p+4],point[p+7]],
-                                                                        [point[p+2],point[p+5],point[p+8]],
+        if p%3 == 0 and p<len(point)-2:
+            pr.append([point[p],point[p+1],point[p+2]])
+    
+    triangles = []
+    iterations = 0
+    for t in index:     #Aqui devemos organizar os pontos na ordem do index
+        if iterations < len(index)-3:
+            triangle_result = np.matmul(transform_matrix.matrix,np.array([[pr[t][0],pr[t+1][0],pr[t+2][0]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                        [pr[t][1],pr[t+1][1],pr[t+2][1]],
+                                                                        [pr[t][2],pr[t+1][2],pr[t+2][2]],
                                                                         [1.0,1.0,1.0]]))
             triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
             triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
@@ -311,11 +316,11 @@ def indexedTriangleStripSet(point, index, color):
                 triangle_result[:,2] /= triangle_result[3][2]
 
             screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
-                                      [0,-ALTURA/2.0,0,ALTURA/2.0],
-                                      [0,0,1.0,0],
-                                      [0,0,0,1.0]])
+                                        [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                        [0,0,1.0,0],
+                                        [0,0,0,1.0]])
             triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
-            counter+=1
+            iterations+=1
     for t in triangles:
         triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao da matriz
     
@@ -404,19 +409,176 @@ def indexedFaceSet(coord, coordIndex, colorPerVertex, color, colorIndex, texCoor
     # textura para o poligono, para isso, use as coordenadas de textura e depois aplique a
     # cor da textura conforme a posição do mapeamento. Dentro da classe GPU já está
     # implementadado um método para a leitura de imagens.
-    
-    # O print abaixo é só para vocês verificarem o funcionamento, deve ser removido.
-    print("IndexedFaceSet : ")
-    if coord:
-        print("\tpontos(x, y, z) = {0}, coordIndex = {1}".format(coord, coordIndex)) # imprime no terminal
-    if colorPerVertex:
-        print("\tcores(r, g, b) = {0}, colorIndex = {1}".format(color, colorIndex)) # imprime no terminal
-    if texCoord:
-        print("\tpontos(u, v) = {0}, texCoordIndex = {1}".format(texCoord, texCoordIndex)) # imprime no terminal
-    if(current_texture):
-        image = gpu.GPU.load_texture(current_texture[0])
-        print("\t Matriz com image = {0}".format(image))
 
+    if texCoord:
+        image = gpu.GPU.load_texture(current_texture[0])
+        pr = [] #lista que armazena os pontos em ordem crescente
+        for p in range(len(coord)):
+            if p%3 == 0 and p<len(coord)-2:
+                pr.append([coord[p],coord[p+1],coord[p+2]])
+        
+        iterations = 0
+        triangles = []
+        for t in range(len(coordIndex)):     #Aqui devemos organizar os pontos na ordem do index
+            if iterations < len(coordIndex)-3 and coordIndex[t] != -1 and coordIndex[t+1] != -1 and coordIndex[t+2] != -1:
+                triangle_result = np.matmul(transform_matrix.matrix,np.array([[pr[coordIndex[t]][0],pr[coordIndex[t+1]][0],pr[coordIndex[t+2]][0]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                            [pr[coordIndex[t]][1],pr[coordIndex[t+1]][1],pr[coordIndex[t+2]][1]],
+                                                                            [pr[coordIndex[t]][2],pr[coordIndex[t+1]][2],pr[coordIndex[t+2]][2]],
+                                                                            [1.0,1.0,1.0]]))
+                triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
+                triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+                if(triangle_result[3][0]>0): #normalização
+                    triangle_result[:,0] /= triangle_result[3][0]
+                if(triangle_result[3][1]>0):
+                    triangle_result[:,1] /= triangle_result[3][1]
+                if(triangle_result[3][2]>0):
+                    triangle_result[:,2] /= triangle_result[3][2]
+
+                screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                        [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                        [0,0,1.0,0],
+                                        [0,0,0,1.0]])
+                triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
+            iterations+=1
+
+        tr = [] #lista que armazena as cores na ordem de entrada
+        for c in range(len(texCoord)):
+            if c%2 == 0 and c<len(texCoord)-1:
+                tr.append([texCoord[c],texCoord[c+1]])
+        print(tr)
+        texture_iterator = 0
+        for t in triangles:
+            #triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao de cada triangulo segundo a média das cores pelo calculo de baricentro
+            if texCoordIndex[texture_iterator] != -1 and texCoordIndex[texture_iterator+1] != -1 and texCoordIndex[texture_iterator+2] != -1:
+                vertices = [t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]]
+                # pontos_da_vez = [tr[texture_iterator], tr[texture_iterator+1], tr[texture_iterator+2]]
+                # escala_x = len(image)/(vertices[0]-vertices[1]-vertices[2])
+                # escala_y = len(image)/(vertices[1]-vertices[3]-vertices[5])
+                # cores_da_vez = [tr[texCoordIndex[texture_iterator]], tr[texCoordIndex[texture_iterator+1]], tr[texCoordIndex[texture_iterator+2]]]
+                for l in range(0,LARGURA):
+                    for a in range(0,ALTURA):
+                        #Multisampling for anti-aliasing (4XAA)
+                        multiplier0 = isInside(vertices, [l+0.33,a+0.33])
+                        multiplier1 = isInside(vertices, [l+0.33,a+0.66])
+                        multiplier2 = isInside(vertices, [l+0.66,a+0.33])
+                        multiplier3 = isInside(vertices, [l+0.66,a+0.66])
+                        #Final multiplier checks which parts of the pixel are covered by triangle
+                        fm = 0.25*multiplier0 + 0.25*multiplier1 + 0.25*multiplier2 + 0.25*multiplier3
+                        #calculo da cor naqule pixel
+
+                        color = image[l][a]
+
+                        if fm > 0:
+                            gpu.GPU.set_pixel(l, a, 255*fm*color[2], 255*fm*color[1], 255*fm*color[0]) # altera um pixel da imagem
+            texture_iterator +=1
+            if texture_iterator < len(texCoordIndex)-3:
+                while texCoordIndex[texture_iterator] == -1 or texCoordIndex[texture_iterator+1] == -1 or texCoordIndex[texture_iterator+2] == -1:
+                    texture_iterator +=1
+
+    elif colorPerVertex:
+        pr = [] #lista que armazena os pontos em ordem crescente
+        for p in range(len(coord)):
+            if p%3 == 0 and p<len(coord)-2:
+                pr.append([coord[p],coord[p+1],coord[p+2]])
+        
+        iterations = 0
+        triangles = []
+        for t in range(len(coordIndex)):     #Aqui devemos organizar os pontos na ordem do index
+            if iterations < len(coordIndex)-3 and coordIndex[t] != -1 and coordIndex[t+1] != -1 and coordIndex[t+2] != -1:
+                triangle_result = np.matmul(transform_matrix.matrix,np.array([[pr[coordIndex[t]][0],pr[coordIndex[t+1]][0],pr[coordIndex[t+2]][0]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                            [pr[coordIndex[t]][1],pr[coordIndex[t+1]][1],pr[coordIndex[t+2]][1]],
+                                                                            [pr[coordIndex[t]][2],pr[coordIndex[t+1]][2],pr[coordIndex[t+2]][2]],
+                                                                            [1.0,1.0,1.0]]))
+                triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
+                triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+                if(triangle_result[3][0]>0): #normalização
+                    triangle_result[:,0] /= triangle_result[3][0]
+                if(triangle_result[3][1]>0):
+                    triangle_result[:,1] /= triangle_result[3][1]
+                if(triangle_result[3][2]>0):
+                    triangle_result[:,2] /= triangle_result[3][2]
+
+                screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                        [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                        [0,0,1.0,0],
+                                        [0,0,0,1.0]])
+                triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
+            iterations+=1
+
+        cr = [] #lista que armazena as cores na ordem de entrada
+        for c in range(len(color)):
+            if c%3 == 0 and c<len(color)-2:
+                cr.append([color[c],color[c+1],color[c+2]])
+        color_iterator = 0
+        for t in triangles:
+            #triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao de cada triangulo segundo a média das cores pelo calculo de baricentro
+            if colorIndex[color_iterator] != -1 and colorIndex[color_iterator+1] != -1 and colorIndex[color_iterator+2] != -1:
+                vertices = [t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]]
+                cores_da_vez = [cr[colorIndex[color_iterator]], cr[colorIndex[color_iterator+1]], cr[colorIndex[color_iterator+2]]]
+                for l in range(0,LARGURA):
+                    for a in range(0,ALTURA):
+                        #Multisampling for anti-aliasing (4XAA)
+                        multiplier0 = isInside(vertices, [l+0.33,a+0.33])
+                        multiplier1 = isInside(vertices, [l+0.33,a+0.66])
+                        multiplier2 = isInside(vertices, [l+0.66,a+0.33])
+                        multiplier3 = isInside(vertices, [l+0.66,a+0.66])
+                        #Final multiplier checks which parts of the pixel are covered by triangle
+                        fm = 0.25*multiplier0 + 0.25*multiplier1 + 0.25*multiplier2 + 0.25*multiplier3
+                        #calculo do alpha
+                        alpha = (-(l-vertices[2])*(vertices[5]-vertices[3])+(a-vertices[3])*(vertices[4]-vertices[2]))/(-(vertices[0]-vertices[2])*(vertices[5]-vertices[3])+(vertices[1]-vertices[3])*(vertices[4]-vertices[2]))
+                        beta = (-(l-vertices[4])*(vertices[1]-vertices[5])+(a-vertices[5])*(vertices[0]-vertices[4]))/(-(vertices[2]-vertices[4])*(vertices[1]-vertices[5])+(vertices[3]-vertices[5])*(vertices[0]-vertices[4]))
+                        gamma = 1 - alpha - beta
+                        if fm > 0:
+                            gpu.GPU.set_pixel(l, a, 255*fm*(cores_da_vez[0][0]*alpha+cores_da_vez[1][0]*beta+cores_da_vez[2][0]*gamma), 255*fm*(cores_da_vez[0][1]*alpha+cores_da_vez[1][1]*beta+cores_da_vez[2][1]*gamma), 255*fm*(cores_da_vez[0][2]*alpha+cores_da_vez[1][2]*beta+cores_da_vez[2][2]*gamma)) # altera um pixel da imagem
+            color_iterator +=1
+            if color_iterator < len(colorIndex)-3:
+                while colorIndex[color_iterator] == -1 or colorIndex[color_iterator+1] == -1 or colorIndex[color_iterator+2] == -1:
+                    color_iterator +=1
+    else:
+        pr = [] #lista que armazena os pontos em ordem crescente
+        for p in range(len(coord)):
+            if p%3 == 0 and p<len(coord)-2:
+                pr.append([coord[p],coord[p+1],coord[p+2]])
+        
+        iterations = 0
+        triangles = []
+        for t in range(len(coordIndex)):     #Aqui devemos organizar os pontos na ordem do index
+            if iterations < len(coordIndex)-3 and coordIndex[t] != -1 and coordIndex[t+1] != -1 and coordIndex[t+2] != -1:
+                triangle_result = np.matmul(transform_matrix.matrix,np.array([[pr[coordIndex[t]][0],pr[coordIndex[t+1]][0],pr[coordIndex[t+2]][0]], #multiplica a matriz dos pontos pela matriz de transformação
+                                                                            [pr[coordIndex[t]][1],pr[coordIndex[t+1]][1],pr[coordIndex[t+2]][1]],
+                                                                            [pr[coordIndex[t]][2],pr[coordIndex[t+1]][2],pr[coordIndex[t+2]][2]],
+                                                                            [1.0,1.0,1.0]]))
+                triangle_result = np.matmul(look_at_matrix.matrix,triangle_result) #multiplica o resultado pela matriz look at
+                triangle_result = np.matmul(perspective_matrix.matrix,triangle_result)#multiplica o resultado pela matriz perspectiva
+                if(triangle_result[3][0]>0): #normalização
+                    triangle_result[:,0] /= triangle_result[3][0]
+                if(triangle_result[3][1]>0):
+                    triangle_result[:,1] /= triangle_result[3][1]
+                if(triangle_result[3][2]>0):
+                    triangle_result[:,2] /= triangle_result[3][2]
+
+                screen_matrix = np.array([[LARGURA/2.0,0,0,LARGURA/2.0],
+                                        [0,-ALTURA/2.0,0,ALTURA/2.0],
+                                        [0,0,1.0,0],
+                                        [0,0,0,1.0]])
+                triangles.append(np.matmul(screen_matrix,triangle_result)) #faz a adequação da matriz normalizada para os pontos da tela
+            iterations+=1
+
+        #A variavel color está chegando como None, então é preciso redefinir-la para a cor desejada
+        color=[1,1,1]
+        for t in triangles:
+            triangleSet2D([t[0][0],t[1][0],t[0][1],t[1][1],t[0][2],t[1][2]], color) #faz a rasterizaçao de cada triangulo segundo a média das cores pelo calculo de baricentro
+            
+    # print("IndexedFaceSet : ")
+    # if coord:
+    #     print("\tpontos(x, y, z) = {0}, coordIndex = {1}".format(coord, coordIndex)) # imprime no terminal
+    # if colorPerVertex:
+    #     print("\tcores(r, g, b) = {0}, colorIndex = {1}".format(color, colorIndex)) # imprime no terminal
+    # if texCoord:
+    #     print("\tpontos(u, v) = {0}, texCoordIndex = {1}".format(texCoord, texCoordIndex)) # imprime no terminal
+    # if(current_texture):
+    #     image = gpu.GPU.load_texture(current_texture[0])
+    #     print("\t Matriz com image = {0}".format(image))
 
 if __name__ == '__main__':
 
